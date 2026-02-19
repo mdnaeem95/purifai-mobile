@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,16 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Header } from '../../components/common/Header';
+import { FamilyMemberModal } from '../../components/family/FamilyMemberModal';
 import { colors, spacing, typography, borderRadius, shadows } from '../../constants/theme';
 import { useUserStore } from '../../store/userStore';
 import { useCalculatorStore } from '../../store/calculatorStore';
 import { usePaymentStore } from '../../store/paymentStore';
 import { useNisabStore } from '../../store/nisabStore';
+import { useFamilyStore } from '../../store/familyStore';
 import { ZAKAT_RATE } from '../../constants/nisab';
+import { RELATIONSHIP_LABELS } from '../../types/family';
+import type { FamilyMember, Relationship } from '../../types/family';
 
 // --- Setting Row Component ---
 
@@ -92,11 +96,22 @@ const Divider = () => <View style={styles.divider} />;
 const SettingsScreen: React.FC = () => {
   const user = useUserStore((s) => s.user);
   const logout = useUserStore((s) => s.logout);
+  const replayOnboarding = useUserStore((s) => s.replayOnboarding);
   const calculatedCalculators = useCalculatorStore((s) => s.calculatedCalculators);
   const resetAll = useCalculatorStore((s) => s.resetAll);
   const payments = usePaymentStore((s) => s.payments);
   const clearPayments = usePaymentStore((s) => s.clearPayments);
   const nisab = useNisabStore();
+
+  // Family state
+  const members = useFamilyStore((s) => s.members);
+  const addMember = useFamilyStore((s) => s.addMember);
+  const removeMember = useFamilyStore((s) => s.removeMember);
+  const renameMember = useFamilyStore((s) => s.renameMember);
+  const updateRelationship = useFamilyStore((s) => s.updateRelationship);
+
+  const [familyModalVisible, setFamilyModalVisible] = useState(false);
+  const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -174,6 +189,33 @@ const SettingsScreen: React.FC = () => {
     );
   };
 
+  // --- Family Handlers ---
+
+  const handleAddMember = () => {
+    setEditingMember(null);
+    setFamilyModalVisible(true);
+  };
+
+  const handleEditMember = (member: FamilyMember) => {
+    setEditingMember(member);
+    setFamilyModalVisible(true);
+  };
+
+  const handleSaveMember = async (name: string, relationship: Relationship) => {
+    if (editingMember) {
+      await renameMember(editingMember.id, name);
+      await updateRelationship(editingMember.id, relationship);
+    } else {
+      await addMember(name, relationship);
+    }
+  };
+
+  const handleDeleteMember = async () => {
+    if (editingMember) {
+      await removeMember(editingMember.id);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Header />
@@ -190,6 +232,29 @@ const SettingsScreen: React.FC = () => {
             icon="calendar"
             label="Member Since"
             value={user?.createdAt ? formatDate(user.createdAt) : '—'}
+          />
+        </Section>
+
+        {/* --- Family Members --- */}
+        <Section title="Family Members">
+          {members.map((member, index) => (
+            <React.Fragment key={member.id}>
+              {index > 0 && <Divider />}
+              <SettingRow
+                icon={member.relationship === 'self' ? 'user' : 'users'}
+                label={member.name}
+                value={RELATIONSHIP_LABELS[member.relationship]}
+                onPress={member.relationship !== 'self' ? () => handleEditMember(member) : undefined}
+                showChevron={member.relationship !== 'self'}
+              />
+            </React.Fragment>
+          ))}
+          <Divider />
+          <SettingRow
+            icon="user-plus"
+            label="Add Family Member"
+            onPress={handleAddMember}
+            showChevron
           />
         </Section>
 
@@ -264,6 +329,13 @@ const SettingsScreen: React.FC = () => {
           <SettingRow icon="code" label="Built with" value="React Native & Expo" />
           <Divider />
           <SettingRow icon="heart" label="Tagline" value="Zakat Made Simple" />
+          <Divider />
+          <SettingRow
+            icon="play-circle"
+            label="Replay Onboarding"
+            onPress={replayOnboarding}
+            showChevron
+          />
         </Section>
 
         {/* --- Account --- */}
@@ -289,6 +361,16 @@ const SettingsScreen: React.FC = () => {
           <Text style={styles.footerText}>Zakat Made Simple</Text>
         </View>
       </ScrollView>
+
+      <FamilyMemberModal
+        visible={familyModalVisible}
+        onClose={() => setFamilyModalVisible(false)}
+        onSave={handleSaveMember}
+        onDelete={editingMember ? handleDeleteMember : undefined}
+        initialName={editingMember?.name || ''}
+        initialRelationship={editingMember?.relationship || 'son'}
+        mode={editingMember ? 'edit' : 'add'}
+      />
     </View>
   );
 };

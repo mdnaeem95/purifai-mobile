@@ -18,7 +18,8 @@ import {
   PrivateEquityData,
   BusinessData,
 } from '../types/calculator';
-import { saveData, loadData } from '../services/storage';
+import { saveMemberData, loadMemberData } from '../services/storage';
+import { useFamilyStore } from './familyStore';
 
 interface CalculatorState {
   cash: CashData | null;
@@ -53,6 +54,7 @@ interface CalculatorStore {
   toggleCalculatorSelection: (type: CalculatorType) => void;
   markAsCalculated: (type: CalculatorType) => Promise<void>;
   updateTotalZakat: () => void;
+  loadAllMembersCalculators: () => Promise<Record<string, CalculatorState>>;
 }
 
 const initialCalculatorState: CalculatorState = {
@@ -74,6 +76,8 @@ const initialCalculatorState: CalculatorState = {
   business: null,
 };
 
+const getMemberId = (): string => useFamilyStore.getState().currentMemberId;
+
 export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
   calculators: initialCalculatorState,
   selectedCalculators: [],
@@ -81,15 +85,16 @@ export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
   totalZakatDue: 0,
 
   setCalculatorData: async (type: CalculatorType, data: any) => {
+    const memberId = getMemberId();
     const newCalculators = {
       ...get().calculators,
       [type]: data,
     };
 
-    await saveData('calculators', newCalculators);
+    await saveMemberData('calculators', memberId, newCalculators);
 
     // Add to calculated calculators if it has a calculation
-    const calculatedCalculators = get().calculatedCalculators;
+    const calculatedCalculators = [...get().calculatedCalculators];
     if (data.calculated && !calculatedCalculators.includes(type)) {
       calculatedCalculators.push(type);
     }
@@ -104,12 +109,13 @@ export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
   },
 
   clearCalculator: async (type: CalculatorType) => {
+    const memberId = getMemberId();
     const newCalculators = {
       ...get().calculators,
       [type]: null,
     };
 
-    await saveData('calculators', newCalculators);
+    await saveMemberData('calculators', memberId, newCalculators);
 
     // Remove from selected and calculated
     const selectedCalculators = get().selectedCalculators.filter((c) => c !== type);
@@ -126,8 +132,10 @@ export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
   },
 
   resetAll: async () => {
-    await saveData('calculators', initialCalculatorState);
-    await saveData('selectedCalculators', []);
+    const memberId = getMemberId();
+    await saveMemberData('calculators', memberId, initialCalculatorState);
+    await saveMemberData('selectedCalculators', memberId, []);
+    await saveMemberData('calculatedCalculators', memberId, []);
 
     set({
       calculators: initialCalculatorState,
@@ -138,37 +146,40 @@ export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
   },
 
   loadCalculators: async () => {
-    const calculators = await loadData<CalculatorState>('calculators');
-    const selectedCalculators = await loadData<string[]>('selectedCalculators');
-    const calculatedCalculators = await loadData<string[]>('calculatedCalculators');
+    const memberId = getMemberId();
+    if (!memberId) return;
 
-    if (calculators) {
-      set({
-        calculators,
-        selectedCalculators: selectedCalculators || [],
-        calculatedCalculators: calculatedCalculators || [],
-      });
+    const calculators = await loadMemberData<CalculatorState>('calculators', memberId);
+    const selectedCalculators = await loadMemberData<string[]>('selectedCalculators', memberId);
+    const calculatedCalculators = await loadMemberData<string[]>('calculatedCalculators', memberId);
 
-      // Update total Zakat
-      get().updateTotalZakat();
-    }
+    set({
+      calculators: calculators || initialCalculatorState,
+      selectedCalculators: selectedCalculators || [],
+      calculatedCalculators: calculatedCalculators || [],
+    });
+
+    // Update total Zakat
+    get().updateTotalZakat();
   },
 
   toggleCalculatorSelection: async (type: CalculatorType) => {
+    const memberId = getMemberId();
     const selectedCalculators = get().selectedCalculators;
     const newSelection = selectedCalculators.includes(type)
       ? selectedCalculators.filter((c) => c !== type)
       : [...selectedCalculators, type];
 
-    await saveData('selectedCalculators', newSelection);
+    await saveMemberData('selectedCalculators', memberId, newSelection);
     set({ selectedCalculators: newSelection });
   },
 
   markAsCalculated: async (type: CalculatorType) => {
+    const memberId = getMemberId();
     const calculatedCalculators = get().calculatedCalculators;
     if (!calculatedCalculators.includes(type)) {
       const newCalculated = [...calculatedCalculators, type];
-      await saveData('calculatedCalculators', newCalculated);
+      await saveMemberData('calculatedCalculators', memberId, newCalculated);
       set({ calculatedCalculators: newCalculated });
     }
 
@@ -187,5 +198,19 @@ export const useCalculatorStore = create<CalculatorStore>((set, get) => ({
     });
 
     set({ totalZakatDue: total });
+  },
+
+  loadAllMembersCalculators: async () => {
+    const members = useFamilyStore.getState().members;
+    const allData: Record<string, CalculatorState> = {};
+
+    for (const member of members) {
+      const data = await loadMemberData<CalculatorState>('calculators', member.id);
+      if (data) {
+        allData[member.id] = data;
+      }
+    }
+
+    return allData;
   },
 }));

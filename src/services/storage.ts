@@ -41,3 +41,32 @@ export const clearAllData = async (): Promise<void> => {
     throw error;
   }
 };
+
+// --- Member-scoped storage helpers ---
+
+export const saveMemberData = async <T>(key: string, memberId: string, data: T): Promise<void> => {
+  await saveData(`${key}:${memberId}`, data);
+};
+
+export const loadMemberData = async <T>(key: string, memberId: string): Promise<T | null> => {
+  return loadData<T>(`${key}:${memberId}`);
+};
+
+export const removeMemberData = async (key: string, memberId: string): Promise<void> => {
+  await removeData(`${key}:${memberId}`);
+};
+
+export const clearAllMemberData = async (memberId: string): Promise<void> => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const memberKeys = keys.filter(
+      (key) => key.startsWith(STORAGE_PREFIX) && key.endsWith(`:${memberId}`),
+    );
+    if (memberKeys.length > 0) {
+      await AsyncStorage.multiRemove(memberKeys);
+    }
+  } catch (error) {
+    console.error(`Error clearing data for member ${memberId}:`, error);
+    throw error;
+  }
+};

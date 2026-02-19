@@ -7,6 +7,8 @@ interface UserStore extends AuthState {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loadUser: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
+  replayOnboarding: () => Promise<void>;
 }
 
 export const useUserStore = create<UserStore>((set) => ({
@@ -20,6 +22,7 @@ export const useUserStore = create<UserStore>((set) => ({
       name: 'Muhammad Naeem Bin Sani',
       email,
       createdAt: new Date().toISOString(),
+      hasCompletedOnboarding: true,
     };
 
     await saveData('user', user);
@@ -33,6 +36,7 @@ export const useUserStore = create<UserStore>((set) => ({
       name,
       email,
       createdAt: new Date().toISOString(),
+      hasCompletedOnboarding: false,
     };
 
     await saveData('user', user);
@@ -47,7 +51,29 @@ export const useUserStore = create<UserStore>((set) => ({
   loadUser: async () => {
     const user = await loadData<User>('user');
     if (user) {
+      // Backward compatibility: existing users without the field skip onboarding
+      if (user.hasCompletedOnboarding === undefined) {
+        user.hasCompletedOnboarding = true;
+      }
       set({ user, isAuthenticated: true });
     }
+  },
+
+  completeOnboarding: async () => {
+    set((state) => {
+      if (!state.user) return state;
+      const updatedUser = { ...state.user, hasCompletedOnboarding: true };
+      saveData('user', updatedUser);
+      return { user: updatedUser };
+    });
+  },
+
+  replayOnboarding: async () => {
+    set((state) => {
+      if (!state.user) return state;
+      const updatedUser = { ...state.user, hasCompletedOnboarding: false };
+      saveData('user', updatedUser);
+      return { user: updatedUser };
+    });
   },
 }));

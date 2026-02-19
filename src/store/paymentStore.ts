@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Payment, PaymentHistory, Beneficiary } from '../types/payment';
-import { saveData, loadData } from '../services/storage';
+import { saveMemberData, loadMemberData } from '../services/storage';
+import { useFamilyStore } from './familyStore';
 
 export const BENEFICIARIES: Beneficiary[] = [
   { id: 'jamiyah', name: 'Jamiyah Singapore', initials: 'JS', color: '#3B82F6' },
@@ -13,6 +14,8 @@ export const BENEFICIARIES: Beneficiary[] = [
 ];
 
 export const PROCESSING_FEE_RATE = 0.0239; // 2.39%
+
+const getMemberId = (): string => useFamilyStore.getState().currentMemberId;
 
 interface PaymentStore extends PaymentHistory {
   // Current payment state
@@ -66,6 +69,7 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
   },
 
   addPayment: async (paymentData) => {
+    const memberId = getMemberId();
     const newPayment: Payment = {
       ...paymentData,
       id: Date.now().toString(),
@@ -73,7 +77,7 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
     };
 
     const payments = [...get().payments, newPayment];
-    await saveData('payments', payments);
+    await saveMemberData('payments', memberId, payments);
 
     const totalPaid = payments
       .filter((p) => p.status === 'completed')
@@ -83,6 +87,7 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
   },
 
   updatePaymentStatus: async (paymentId, status) => {
+    const memberId = getMemberId();
     const payments = get().payments.map((payment) => {
       if (payment.id === paymentId) {
         return {
@@ -94,7 +99,7 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
       return payment;
     });
 
-    await saveData('payments', payments);
+    await saveMemberData('payments', memberId, payments);
 
     const totalPaid = payments
       .filter((p) => p.status === 'completed')
@@ -104,7 +109,10 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
   },
 
   loadPayments: async () => {
-    const payments = await loadData<Payment[]>('payments');
+    const memberId = getMemberId();
+    if (!memberId) return;
+
+    const payments = await loadMemberData<Payment[]>('payments', memberId);
 
     if (payments) {
       const totalPaid = payments
@@ -112,11 +120,14 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
         .reduce((sum, p) => sum + p.zakatAmount, 0);
 
       set({ payments, totalPaid });
+    } else {
+      set({ payments: [], totalPaid: 0 });
     }
   },
 
   clearPayments: async () => {
-    await saveData('payments', []);
+    const memberId = getMemberId();
+    await saveMemberData('payments', memberId, []);
     set({ payments: [], totalPaid: 0 });
   },
 

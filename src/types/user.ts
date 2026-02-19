@@ -5,6 +5,7 @@ export interface User {
   name: string;
   email: string;
   createdAt: string;
+  hasCompletedOnboarding: boolean;
 }
 
 export interface AuthState {

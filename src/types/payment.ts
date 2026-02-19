@@ -26,6 +26,8 @@ export interface Payment {
   status: 'pending' | 'completed' | 'failed';
   createdAt: string;
   completedAt?: string;
+  memberId?: string;
+  memberName?: string;
 }
 
 export interface PaymentHistory {

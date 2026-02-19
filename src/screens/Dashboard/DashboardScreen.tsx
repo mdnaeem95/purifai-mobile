@@ -1,17 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Header } from '../../components/common/Header';
 import { AssetCard } from '../../components/dashboard/AssetCard';
 import { PaymentSummary } from '../../components/dashboard/PaymentSummary';
 import { NisabDisplay } from '../../components/dashboard/NisabDisplay';
-import { Button } from '../../components/common/Button';
-import { colors, spacing, typography } from '../../constants/theme';
+import { PortfolioView } from '../../components/dashboard/PortfolioView';
+import { colors, spacing, typography, borderRadius } from '../../constants/theme';
 import { CALCULATORS } from '../../constants/calculators';
 import { useCalculatorStore } from '../../store/calculatorStore';
+import { useFamilyStore } from '../../store/familyStore';
 import { Feather } from '@expo/vector-icons';
+
+type Tab = 'calculators' | 'portfolio';
 
 const DashboardScreen: React.FC = () => {
   const resetAll = useCalculatorStore((state) => state.resetAll);
+  const members = useFamilyStore((s) => s.members);
+  const currentMemberId = useFamilyStore((s) => s.currentMemberId);
+  const currentMember = members.find((m) => m.id === currentMemberId);
+  const [activeTab, setActiveTab] = useState<Tab>('calculators');
 
   const handleResetAll = () => {
     resetAll();
@@ -23,45 +30,88 @@ const DashboardScreen: React.FC = () => {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Page Header */}
         <View style={styles.pageHeader}>
-          <Text style={styles.title}>Pay your Zakat across 16 asset categories</Text>
+          <Text style={styles.title}>
+            {currentMember && currentMember.relationship !== 'self'
+              ? `${currentMember.name}'s Zakat across 16 asset categories`
+              : 'Pay your Zakat across 16 asset categories'}
+          </Text>
           <TouchableOpacity
             style={styles.resetButton}
             onPress={handleResetAll}
           >
             <Feather name="rotate-ccw" size={16} color={colors.red[600]} />
-            <Text style={styles.resetButtonText}>Reset All Calculators</Text>
+            <Text style={styles.resetButtonText}>Reset All</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Payment Summary */}
-        <PaymentSummary />
-
-        {/* Nisab Display */}
-        <NisabDisplay />
-
-        {/* Section Title */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Text style={styles.sectionTitleBold}>Select</Text> assets you own,{' '}
-            <Text style={styles.sectionTitleBold}>calculate</Text>, and{' '}
-            <Text style={styles.sectionTitleBold}>pay</Text> your selected ones
-          </Text>
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'calculators' && styles.tabActive]}
+            onPress={() => setActiveTab('calculators')}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name="grid"
+              size={16}
+              color={activeTab === 'calculators' ? colors.white : colors.gray[500]}
+            />
+            <Text style={[styles.tabText, activeTab === 'calculators' && styles.tabTextActive]}>
+              Calculators
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'portfolio' && styles.tabActive]}
+            onPress={() => setActiveTab('portfolio')}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name="pie-chart"
+              size={16}
+              color={activeTab === 'portfolio' ? colors.white : colors.gray[500]}
+            />
+            <Text style={[styles.tabText, activeTab === 'portfolio' && styles.tabTextActive]}>
+              Portfolio
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Calculator Cards Grid */}
-        <View style={styles.grid}>
-          {CALCULATORS.map((calculator) => (
-            <View key={calculator.id} style={styles.gridItem}>
-              <AssetCard
-                id={calculator.id}
-                name={calculator.name}
-                icon={calculator.icon}
-                description={calculator.description}
-                route={calculator.route}
-              />
+        {/* Tab Content */}
+        {activeTab === 'calculators' ? (
+          <>
+            {/* Payment Summary */}
+            <PaymentSummary />
+
+            {/* Nisab Display */}
+            <NisabDisplay />
+
+            {/* Section Title */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                <Text style={styles.sectionTitleBold}>Select</Text> assets you own,{' '}
+                <Text style={styles.sectionTitleBold}>calculate</Text>, and{' '}
+                <Text style={styles.sectionTitleBold}>pay</Text> your selected ones
+              </Text>
             </View>
-          ))}
-        </View>
+
+            {/* Calculator Cards Grid */}
+            <View style={styles.grid}>
+              {CALCULATORS.map((calculator) => (
+                <View key={calculator.id} style={styles.gridItem}>
+                  <AssetCard
+                    id={calculator.id}
+                    name={calculator.name}
+                    icon={calculator.icon}
+                    description={calculator.description}
+                    route={calculator.route}
+                  />
+                </View>
+              ))}
+            </View>
+          </>
+        ) : (
+          <PortfolioView />
+        )}
       </ScrollView>
     </View>
   );
@@ -107,6 +157,37 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeights.medium,
     color: colors.red[600],
   },
+
+  // Tabs
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.lg,
+    padding: 4,
+    marginBottom: spacing.lg,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  tabActive: {
+    backgroundColor: colors.primary[700],
+  },
+  tabText: {
+    fontSize: typography.fontSizes.base,
+    fontWeight: typography.fontWeights.medium,
+    color: colors.gray[500],
+  },
+  tabTextActive: {
+    color: colors.white,
+  },
+
+  // Calculators tab
   section: {
     marginBottom: spacing.lg,
   },

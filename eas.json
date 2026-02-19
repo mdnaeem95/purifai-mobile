@@ -38,7 +38,6 @@
         "appleTeamId": "RF3P52KUZA"
       },
       "android": {
-        "serviceAccountKeyPath": "",
         "track": "internal"
       }
     }
